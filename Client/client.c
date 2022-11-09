@@ -13,6 +13,8 @@
 #include <stdbool.h>
 
 
+
+
 int sd;                    
 struct sockaddr_in server; 
 char fileName[100] = "";
