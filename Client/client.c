@@ -24,7 +24,6 @@ void initialSetup(int argc, char *argv[]);
 void getFileName();
 void sendRequest();
 bool readData(int sock, void *buf, int buflen);
-bool readBytes(int sock, long long *value);
 bool readFile(int sock, FILE *f);
 
 int main(int argc, char *argv[])
@@ -35,20 +34,17 @@ int main(int argc, char *argv[])
   sendRequest();
 
   FILE *copiedFile = fopen(fileName, "wb+");
-
-  if(readfile(sd, copiedFile) == false)
+  if(readFile(sd, copiedFile) == false)
     printf("Removal status: %d\n", remove(fileName));
 
   fclose(copiedFile);
-
   free(serverOutput);
 }
 
 bool readData(int sock, void *buf, int buflen) {
   unsigned char *pbuf = (unsigned char *)buf;
 
-  while (buflen > 0)
-  {
+  while (buflen > 0) {
     int num = recv(sock, pbuf, buflen, 0);
     if (num == 0)
       return false;
@@ -59,40 +55,38 @@ bool readData(int sock, void *buf, int buflen) {
   return true;
 }
 
-bool readBytes(int sock, long long *value) {
-  if (!readData(sock, value, sizeof(value)))
-    return false;
-  *value = ntohl(*value);
-  return true;
-}
-
 bool readFile(int sock, FILE *f) {
-  long long filesize;
-  if (!readBytes(sock, &filesize))
-    return false;
+  long long filesize = 0;
+  /// getting the size of the file from server
+  if(!readData(sock, &filesize, sizeof(filesize)))
+      return false;
+  filesize = ntohl(filesize);
 
-  if (filesize > 0)
-  {
+
+  if (filesize > 0) {
     printf("Receiving file of size %lld\n", filesize);
     char buffer[1024];
-    do
-    {
-      int num;
+    do {
+      long long MAX_SIZE;
       if(filesize <= sizeof(buffer))
-        num = filesize;
+        MAX_SIZE = filesize;
       else
-        num = sizeof(buffer);
-      if (!readData(sock, buffer, num))
-        return false;
+        MAX_SIZE = sizeof(buffer);
+
+      if (!readData(sock, buffer, MAX_SIZE))
+        {
+          printf("HERE\n");
+          return false;
+        }
       int offset = 0;
-      do
-      {
-        size_t written = fwrite(&buffer[offset], 1, num - offset, f);
+      do {
+        /// writing into the file until we write current buffer
+        int written = fwrite(&buffer[offset], 1, MAX_SIZE - offset, f);
         if (written < 1)
           return false;
         offset += written;
-      } while (offset < num);
-      filesize -= num;
+      } while (offset < MAX_SIZE);
+      filesize -= MAX_SIZE;
     } while (filesize > 0);
     printf("File received!\n");
     return true;

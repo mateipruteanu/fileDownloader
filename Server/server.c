@@ -26,7 +26,6 @@ void receiveRequest(char *fileName);
 void sendFail();
 bool searchForFile(char *fileName);
 bool sendData(int sock, void *buf, int buflen);
-bool sendBytes(int sock, long long value);
 bool sendFile(int sock, FILE *source);
 
 int main() {
@@ -41,14 +40,13 @@ int main() {
 
     source = fopen(fileName, "rb");
 
-
     if(searchForFile(fileName)) {
       sendFile(client, source);
-
     }
     else {
       sendFail();
     }
+
     close(client);
     fclose(source);
     free(fileName);
@@ -71,43 +69,38 @@ bool sendData(int sock, void *buf, int buflen)
   return true;
 }
 
-bool sendBytes(int sock, long long value)
+bool sendFile(int sock, FILE *source)
 {
-  value = htonl(value);
-  return sendData(sock, &value, sizeof(value));
-}
-
-bool sendFile(int sock, FILE *source) {
 
   if (FILESIZE == EOF)
     return false;
-  if (!sendBytes(sock, FILESIZE))
-    return false;
-  printf("[server] Sending file of size %lld\n", FILESIZE);
-  if (FILESIZE > 0)
-  {
-    char buffer[1024];
-    do
-    {
-      long long num;
-      if(FILESIZE <= sizeof(buffer))
-        num = FILESIZE;
-      else
-        num = sizeof(buffer);
 
-      num = fread(buffer, 1, num, source);
-      if (num < 1)
+  long long nValue = htonl(FILESIZE);
+  if (!sendData(sock, &nValue, sizeof(nValue)))
+    return false;
+
+
+  printf("[server] Sending file of size %lld\n", FILESIZE);
+  if (FILESIZE > 0) {
+    char buffer[1024];
+    do {
+      long long MAX_SIZE;
+      if (FILESIZE <= sizeof(buffer))
+        MAX_SIZE = FILESIZE;
+      else
+        MAX_SIZE = sizeof(buffer);
+      /// reading the bytes from source file up until MAX_SIZE
+      long long bytes_read = fread(buffer, 1, MAX_SIZE, source);
+      if (bytes_read < 1)
         return false;
-      if (!sendData(sock, buffer, num))
+      if (!sendData(sock, buffer, bytes_read))
         return false;
-      FILESIZE -= num;
+      FILESIZE -= bytes_read;
     } while (FILESIZE > 0);
   }
   printf("[server] File sent!\n");
   return true;
 }
-
-
 
 bool searchForFile(char *fileName) {
   DIR *folder;
@@ -136,7 +129,8 @@ bool searchForFile(char *fileName) {
 }
 
 void sendFail() {
-  sendBytes(client, 0);
+  long long nValue = htonl(0);
+  sendData(client, &nValue, sizeof(nValue));
 }
 
 void receiveRequest(char *fileName) {
